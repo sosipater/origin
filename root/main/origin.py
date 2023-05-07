@@ -1,14 +1,14 @@
 import openai
 import re
 import json
-
 from flask import Flask, request, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
 
 app = Flask(__name__)
 
-# Your OpenAI API Key
-openai.api_key = "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"
+with open('config.json') as f:
+    config = json.load(f)
+    openai.api_key = config['openai_api_key']
 
 def chat_with_gpt_3_5_turbo(messages):
     response = openai.ChatCompletion.create(

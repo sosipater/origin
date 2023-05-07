@@ -1,9 +1,14 @@
 import openai
 import sqlite3
 from db_operations import insert_conversation, insert_message, insert_metadata
+import json
+
+with open('config.json') as f:
+    config = json.load(f)
+    openai.api_key = config['openai_api_key']
 
 # Set up OpenAI API key
-openai.api_key = "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"
+openai.api_key = config['openai_api_key']
 
 
 def start_conversation(conn, title: str, model: str, user_id: int) -> int:

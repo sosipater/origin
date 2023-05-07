@@ -8,6 +8,14 @@ import sys
 import json
 from django.shortcuts import render
 from .models import Chatbot, Message
+import os
+from django.conf import settings
+
+config_file = os.path.join(settings.BASE_DIR, 'config.json')
+with open(config_file, 'r') as f:
+    config = json.load(f)
+    api_key = config['openai_api_key']
+    openai.api_key = api_key
 
 def fetch_history(request):
     if request.method == 'GET':
@@ -75,7 +83,7 @@ def chat(request):
 
         conversation_history = Message.objects.filter(chatbot=chatbot).order_by('created_at')
 
-        openai.api_key = "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"
+        api_key = config['openai_api_key']
 
         messages = [
             {"role": "system", "content": "You are a helpful assistant with access to the conversation history."},
