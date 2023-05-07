@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Interface</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+    body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        height: 100vh;
+        margin: 0;
+        background-color: #f2f2f2;
+    }
+    #chatbox {
+        width: 80%;
+        height: 70vh;
+        border: 1px solid #ccc;
+        background-color: white;
+        padding: 20px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+    }
+    textarea {
+      width: calc(90% - 1000px);
+      height: 50px;
+      resize: flex;
+      margin-right: 10px;
+      min-width: 900px; /* Add this line to set a minimum width */
+    }
+
+    button {
+        padding: 5px 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+    button:hover {
+        background-color: #0056b3;
+    }
+    p {
+        margin: 5px 0;
+    }
+    #input-container {
+        display: flex;
+        width: 80%;
+    }
+    </style>
+</head>
+<body>
+    <div id="chatbox">
+    {% for message in conversation_history %}
+        <p><b>{{ message.role }}:</b> {{ message.content }}</p>
+    {% endfor %}
+    </div>
+    <form id="chat-form">
+        <input type="hidden" name="chatbot_id" value="{{ chatbot_id }}">
+        <div id="input-container">
+            <textarea id="user-input"></textarea>
+            <button id="send-btn" type="submit">Send</button>
+        </div>
+    </form>
+<script>
+    function fetchChatHistory() {
+        const chatbotId = $("input[name='chatbot_id']").val();
+
+        $.ajax({
+            url: "/chat_interface/",
+            type: "GET",
+            data: {
+                chatbot_id: chatbotId
+            },
+            success: function (response) {
+                const chatHistory = response.conversation_history;
+                for (let message of chatHistory) {
+                    const messageElement = $("<p>").html(`<b>${message.role}:</b> ${message.content}`);
+                    $("#chatbox").append(messageElement);
+                }
+            }
+        });
+    }
+
+    function saveChatHistory() {
+        let chatHistory = $("#chatbox").html();
+        localStorage.setItem("chat_history", chatHistory);
+    }
+
+    function loadChatHistory() {
+        let chatHistory = localStorage.getItem("chat_history");
+        if (chatHistory) {
+            $("#chatbox").html(chatHistory);
+        } else {
+            fetchChatHistory();
+        }
+    }
+
+    $(document).ready(function () {
+        loadChatHistory();
+
+        $("#chat-form").submit(function (e) {
+            e.preventDefault();
+            sendMessage();
+        });
+
+        function sendMessage() {
+            const userMessage = $("#user-input").val();
+            const chatbotId = $("input[name='chatbot_id']").val();
+
+            if (!userMessage.trim()) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('message', userMessage);
+            formData.append('chatbot_id', chatbotId);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+            $.ajax({
+                url: "/chat/",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    const userMessageElement = $("<p>").html("<b>User:</b> " + userMessage);
+                    const assistantMessageElement = $("<p>").html("<b>Assistant:</b> " + response.message);
+
+                    $("#chatbox").append(userMessageElement);
+                    $("#chatbox").append(assistantMessageElement);
+                    $("#user-input").val("");
+
+                    // Scroll to the bottom of the chatbox
+                    let chatbox = document.querySelector("#chatbox");
+                    chatbox.scrollTop = chatbox.scrollHeight;
+
+                    saveChatHistory();
+                }
+            });
+        }
+
+        $("#user-input").keydown(function (e) {
+            if (e.keyCode === 13 && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    });
+</script>
+</body>
+</html>

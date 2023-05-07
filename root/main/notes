@@ -1,0 +1,9 @@
+API KEY: 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
+
+cd D:\origin\root
+cd origin_project
+python manage.py runserver
+
+
+python manage.py makemigrations
+python manage.py migrate

@@ -1,0 +1,10 @@
+{% extends 'origin_app/base.html' %}
+
+{% block content %}
+    <h1>Chatbots</h1>
+    <ul>
+    {% for chatbot in chatbots %}
+        <li>{{ chatbot.name }} - {{ chatbot.description }}</li>
+    {% endfor %}
+    </ul>
+{% endblock %}
