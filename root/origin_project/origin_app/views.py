@@ -1,8 +1,6 @@
-from django.shortcuts import render
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.core import serializers
 import openai
 import sys
 import json
@@ -10,6 +8,7 @@ from django.shortcuts import render
 from .models import Chatbot, Message
 import os
 from django.conf import settings
+from .chatbot.views import chat
 
 config_file = os.path.join(settings.BASE_DIR, 'config.json')
 with open(config_file, 'r') as f:
@@ -19,11 +18,14 @@ with open(config_file, 'r') as f:
 
 def fetch_history(request):
     if request.method == 'GET':
-        chatbot_id = request.GET.get('chatbot_id')
-        chatbot = Chatbot.objects.get(pk=chatbot_id)
-        conversation_history = Message.objects.filter(chatbot=chatbot).order_by('created_at')
-        data = serializers.serialize('json', conversation_history)
-        return JsonResponse({'conversation_history': data})
+        conversation_history = Message.objects.all().order_by('created_at')
+        serialized_history = []
+        for message in conversation_history:
+            serialized_history.append({
+                "role": message.role,
+                "content": message.content
+            })
+        return JsonResponse({'conversation_history': serialized_history})
     return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 
@@ -56,24 +58,44 @@ def chatbot_list(request):
     return render(request, 'origin_app/chatbot_list.html', {'chatbots': chatbots, 'chatbot_id': chatbot_id})
 
 def chat_interface(request):
-    chatbot = Chatbot.objects.get(name="GPT-3.5 Turbo")
-    chatbot_id = chatbot.id
-    conversation_history = Message.objects.all().order_by('created_at')
-    context = {
-        'chatbot_id': chatbot_id,
-        'conversation_history': conversation_history,
-    }
-    return render(request, 'chat_interface.html', context)
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        chatbot_id = request.GET.get('chatbot_id')  # Get chatbot_id from the request
+        chatbot = Chatbot.objects.get(id=chatbot_id)  # Get the chatbot based on the id
+        conversation_history = Message.objects.filter(chatbot=chatbot)  # Filter the messages for this chatbot
+        conversation_history = conversation_history.order_by('-created_at')[:20][::-1]
+        serialized_history = []
+        for message in conversation_history:
+            serialized_history.append({
+                "role": message.role,
+                "content": message.content
+            })
+        return JsonResponse({"conversation_history": serialized_history})
 
+    else:
+        chatbots = Chatbot.objects.all()
+        if chatbots.exists():
+            default_chatbot = chatbots.first()
+            conversation_history = Message.objects.filter(chatbot=default_chatbot)
+            conversation_history = conversation_history.order_by('-created_at')[:20][::-1]
+        else:
+            default_chatbot = None
+            conversation_history = []
+        return render(request, 'chat_interface.html', {
+            'chatbots': chatbots,
+            'chatbot_id': default_chatbot.id if default_chatbot else None,
+            'conversation_history': conversation_history
+        })
 @csrf_exempt
 def chat(request):
     print("Request headers:", request.headers, file=sys.stderr)
     print("Request body:", request.body, file=sys.stderr)
 
     if request.method == 'POST':
-        data = request.POST
-        user_message = data.get('message')
-        chatbot_id = data.get('chatbot_id')
+        user_message = request.POST.get('message')
+        chatbot_id = request.POST.get('chatbot_id')
+
+        print("User message:", user_message)
+        print("Chatbot ID:", chatbot_id)
 
         if not chatbot_id:  # Check if chatbot_id is not empty
             return JsonResponse({'error': 'Invalid chatbot_id'}, status=400)
@@ -82,8 +104,6 @@ def chat(request):
         Message.objects.create(role='user', content=user_message, chatbot=chatbot)  # Save the user's message to the database
 
         conversation_history = Message.objects.filter(chatbot=chatbot).order_by('created_at')
-
-        api_key = config['openai_api_key']
 
         messages = [
             {"role": "system", "content": "You are a helpful assistant with access to the conversation history."},
@@ -94,9 +114,12 @@ def chat(request):
             {"role": "user", "content": user_message},
         ]
 
+        # Choose the model based on the chatbot's name
+        model = "gpt-3.5-turbo" if chatbot.name == "GPT-3.5 Turbo" else "gpt-4"
+
         # Call the OpenAI Chat API
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=messages,
         )
         assistant_message = response['choices'][0]['message']['content']

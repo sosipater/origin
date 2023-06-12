@@ -55,11 +55,15 @@
 <body>
     <div id="chatbox">
     {% for message in conversation_history %}
-        <p><b>{{ message.role }}:</b> {{ message.content }}</p>
+        <p><b>{{ message.role }}:</b> {{ message.content|safe }}</p>
     {% endfor %}
     </div>
+    <select id="chatbot-select">
+        {% for chatbot in chatbots %}
+           <option value="{{ chatbot.id }}" {% if chatbot.id == chatbot_id %}selected{% endif %}>{{ chatbot.name }}</option>
+        {% endfor %}
+    </select>
     <form id="chat-form">
-        <input type="hidden" name="chatbot_id" value="{{ chatbot_id }}">
         <div id="input-container">
             <textarea id="user-input"></textarea>
             <button id="send-btn" type="submit">Send</button>
@@ -67,7 +71,7 @@
     </form>
 <script>
     function fetchChatHistory() {
-        const chatbotId = $("input[name='chatbot_id']").val();
+        const chatbotId = $("#chatbot-select").val();
 
         $.ajax({
             url: "/chat_interface/",
@@ -76,27 +80,24 @@
                 chatbot_id: chatbotId
             },
             success: function (response) {
+                // Clear the chatbox before adding new messages
+                $("#chatbox").empty();
+
                 const chatHistory = response.conversation_history;
                 for (let message of chatHistory) {
-                    const messageElement = $("<p>").html(`<b>${message.role}:</b> ${message.content}`);
+                    const messageElement = $("<p>").html(`<b>${message.role}:</b> ` + message.content);
                     $("#chatbox").append(messageElement);
                 }
+
+                // Scroll to the bottom of the chatbox
+                let chatbox = document.querySelector("#chatbox");
+                chatbox.scrollTop = chatbox.scrollHeight;
             }
         });
     }
 
-    function saveChatHistory() {
-        let chatHistory = $("#chatbox").html();
-        localStorage.setItem("chat_history", chatHistory);
-    }
-
     function loadChatHistory() {
-        let chatHistory = localStorage.getItem("chat_history");
-        if (chatHistory) {
-            $("#chatbox").html(chatHistory);
-        } else {
-            fetchChatHistory();
-        }
+        fetchChatHistory();
     }
 
     $(document).ready(function () {
@@ -109,7 +110,7 @@
 
         function sendMessage() {
             const userMessage = $("#user-input").val();
-            const chatbotId = $("input[name='chatbot_id']").val();
+            const chatbotId = $("#chatbot-select").val(); // Get the selected chatbot's ID
 
             if (!userMessage.trim()) {
                 return;
@@ -137,8 +138,6 @@
                     // Scroll to the bottom of the chatbox
                     let chatbox = document.querySelector("#chatbox");
                     chatbox.scrollTop = chatbox.scrollHeight;
-
-                    saveChatHistory();
                 }
             });
         }
